@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+.linear-infinite-carousel .swiper-wrapper {
+    transition-timing-function: linear !important;
+}
+
+.linear-infinite-carousel .swiper-slide {
+    width: auto !important;
+    height: auto !important;
+    flex-shrink: 0 !important;
+}
+
+.linear-infinite-carousel .swiper-slide > .e-con,
+.linear-infinite-carousel .swiper-slide .e-con-inner,
+.linear-infinite-carousel .swiper-slide .elementor-widget-icon-list,
+.linear-infinite-carousel .swiper-slide .elementor-icon-list-items,
+.linear-infinite-carousel .swiper-slide .elementor-icon-list-item {
+    width: max-content !important;
+    max-width: none !important;
+}
+
+.linear-infinite-carousel .swiper-slide .elementor-icon-list-item,
+.linear-infinite-carousel .swiper-slide .elementor-icon-list-text {
+    white-space: nowrap !important;
+}
+
+</style>
+</head>
+<body>
+     <script>
+(function () {
+    var WIDGET = '.linear-infinite-carousel';
+
+    function removeForcedWidths() {
+        var sheets = document.styleSheets;
+        for (var i = 0; i < sheets.length; i++) {
+            var rules;
+            try {
+                rules = sheets[i].cssRules;
+            } catch (error) {
+                continue;
+            }
+            if (rules) {
+                clearWidthRules(rules);
+            }
+        }
+    }
+
+    function clearWidthRules(list) {
+        for (var i = 0; i < list.length; i++) {
+            var rule = list[i];
+            if (rule.cssRules) {
+                clearWidthRules(rule.cssRules);
+            }
+            if (!rule.selectorText || !rule.style) {
+                continue;
+            }
+            if (rule.selectorText.indexOf('linear-infinite-carousel') === -1) {
+                continue;
+            }
+            if (rule.selectorText.indexOf('swiper-slide') === -1) {
+                continue;
+            }
+            var width = rule.style.getPropertyValue('width');
+            if (width && width !== 'auto' && width !== 'max-content') {
+                try {
+                    rule.style.removeProperty('width');
+                } catch (error) {}
+            }
+        }
+    }
+
+    function slidesNeeded(value) {
+        if (value === 'auto' || value === '' || value == null) {
+            return 8;
+        }
+        var count = parseFloat(value);
+        return isFinite(count) ? Math.ceil(count) : 1;
+    }
+
+    function maxSlidesPerView(swiper) {
+        var values = [swiper.params.slidesPerView];
+        var breakpoints = swiper.params.breakpoints || {};
+        Object.keys(breakpoints).forEach(function (key) {
+            var breakpoint = breakpoints[key];
+            if (breakpoint && breakpoint.slidesPerView != null) {
+                values.push(breakpoint.slidesPerView);
+            }
+        });
+        return values.reduce(function (max, value) {
+            return Math.max(max, slidesNeeded(value));
+        }, 1);
+    }
+
+    function realSlides(wrapper) {
+        return Array.prototype.filter.call(wrapper.children, function (slide) {
+            return slide.classList.contains('swiper-slide') && !slide.classList.contains('swiper-slide-duplicate');
+        });
+    }
+
+    function ensureSlides(swiper, maxView) {
+        var wrapper = swiper.wrapperEl;
+        var originals = realSlides(wrapper).filter(function (slide) {
+            return slide.getAttribute('data-loop-clone') !== 'true';
+        });
+        if (!originals.length) {
+            return;
+        }
+
+        Array.prototype.forEach.call(wrapper.querySelectorAll('[data-loop-clone="true"]'), function (clone) {
+            clone.remove();
+        });
+
+        var target = Math.max(originals.length, maxView * 2);
+        var guard = 0;
+        while (realSlides(wrapper).length < target && guard < 8) {
+            originals.forEach(function (slide) {
+                if (realSlides(wrapper).length >= target) {
+                    return;
+                }
+                var clone = slide.cloneNode(true);
+                clone.setAttribute('data-loop-clone', 'true');
+                clone.setAttribute('aria-hidden', 'true');
+                clone.className = 'swiper-slide';
+                clone.removeAttribute('id');
+                clone.removeAttribute('inert');
+                clone.removeAttribute('data-swiper-slide-index');
+                Array.prototype.forEach.call(clone.querySelectorAll('[id]'), function (node) {
+                    node.removeAttribute('id');
+                });
+                wrapper.appendChild(clone);
+            });
+            guard++;
+        }
+    }
+
+    function restartAutoplay(swiper) {
+        if (!swiper.autoplay || !swiper.params.autoplay) {
+            return;
+        }
+        swiper.params.autoplay.stopOnLastSlide = false;
+        swiper.params.autoplay.disableOnInteraction = false;
+        swiper.autoplay.stop();
+        swiper.autoplay.start();
+    }
+
+    function gapSize() {
+        return window.innerWidth < 768 ? 28 : 48;
+    }
+
+    function useContentWidth(swiper) {
+        var gap = gapSize();
+        swiper.params.slidesPerView = 'auto';
+        swiper.params.spaceBetween = gap;
+        var breakpoints = swiper.params.breakpoints || {};
+        Object.keys(breakpoints).forEach(function (key) {
+            breakpoints[key].slidesPerView = 'auto';
+            breakpoints[key].spaceBetween = gap;
+        });
+        Array.prototype.forEach.call(swiper.slides || [], function (slide) {
+            slide.style.width = '';
+            slide.style.marginRight = '';
+        });
+    }
+
+    function rebuild(swiper) {
+        useContentWidth(swiper);
+        var maxView = maxSlidesPerView(swiper);
+        if (typeof swiper.loopDestroy === 'function') {
+            swiper.loopDestroy();
+        }
+        ensureSlides(swiper, maxView);
+        useContentWidth(swiper);
+        swiper.params.loop = true;
+        swiper.params.loopedSlidesLimit = false;
+        swiper.params.loopedSlides = maxView;
+        if (typeof swiper.loopCreate === 'function') {
+            swiper.loopCreate();
+        }
+        swiper.update();
+        restartAutoplay(swiper);
+    }
+
+    function fixCarousel(widget) {
+        if (window.elementorFrontend && elementorFrontend.isEditMode && elementorFrontend.isEditMode()) {
+            return;
+        }
+        var swiperEl = widget.querySelector('.swiper');
+        if (!swiperEl || !swiperEl.swiper || swiperEl.swiper.destroyed) {
+            return;
+        }
+        var swiper = swiperEl.swiper;
+        removeForcedWidths();
+        rebuild(swiper);
+
+        if (!swiperEl.dataset.loopBound) {
+            swiperEl.dataset.loopBound = '1';
+            swiper.on('breakpoint', function () {
+                window.setTimeout(function () {
+                    if (!swiper.destroyed) {
+                        removeForcedWidths();
+                        rebuild(swiper);
+                    }
+                }, 0);
+            });
+        }
+    }
+
+    function watch(widget) {
+        var tries = 0;
+        var timer = window.setInterval(function () {
+            tries++;
+            var swiperEl = widget.querySelector('.swiper');
+            if ((swiperEl && swiperEl.swiper) || tries > 40) {
+                window.clearInterval(timer);
+                if (swiperEl && swiperEl.swiper) {
+                    fixCarousel(widget);
+                }
+            }
+        }, 50);
+    }
+
+    function boot() {
+        removeForcedWidths();
+        Array.prototype.forEach.call(document.querySelectorAll(WIDGET), watch);
+
+        if (window.elementorFrontend && elementorFrontend.hooks) {
+            elementorFrontend.hooks.addAction('frontend/element_ready/nested-carousel.default', function ($scope) {
+                var scope = $scope && $scope[0] ? $scope[0] : $scope;
+                if (!scope) {
+                    return;
+                }
+                var widget = scope.matches && scope.matches(WIDGET) ? scope : scope.querySelector && scope.querySelector(WIDGET);
+                if (widget) {
+                    watch(widget);
+                }
+            });
+        }
+    }
+
+    function start() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', boot);
+        } else {
+            boot();
+        }
+    }
+
+    if (window.elementorFrontend && elementorFrontend.hooks) {
+        start();
+    } else {
+        window.addEventListener('elementor/frontend/init', start);
+    }
+})();
+</script>
+</body>
+</html>

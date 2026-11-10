@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+/* 1. Set container rules to block out page-spilling scrolls */
+#auto-marquee-list {
+    overflow: hidden !important;
+    width: 100% !important;
+}
+
+/* 2. Lock items into a non-wrapping horizontal track line */
+#auto-marquee-list .elementor-icon-list-items {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    width: max-content !important;
+    transform: translate3d(0, 0, 0);
+}
+
+/* 3. Run the linear scrolling animation only after cloning calculation finishes */
+#auto-marquee-list .elementor-icon-list-items.marquee-ready {
+    /* Adjust '35s' to make the conveyor crawl faster or slower */
+    animation: automatedMarquee 35s linear infinite !important; 
+}
+
+/* 4. Style the items perfectly so they don't have massive padding gaps */
+#auto-marquee-list .elementor-icon-list-item {
+    display: inline-flex !important;
+    align-items: center !important;
+    white-space: nowrap !important; /* Forces text to stay in a flat clean row */
+    padding-left: 35px !important;  /* Uniform spacing between icons and text */
+    padding-right: 35px !important;
+    flex-shrink: 0 !important;
+}
+
+/* 5. The Hardware-Accelerated Reset Loop */
+@keyframes automatedMarquee {
+    0% {
+        transform: translate3d(0, 0, 0);
+    }
+    100% {
+        /* Loops at exactly half width because the track is filled evenly */
+        transform: translate3d(-50%, 0, 0); 
+    }
+}
+
+/* 6. Stop rendering lags or text shimmering during the crawl */
+#auto-marquee-list .elementor-icon-list-items {
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+</style>
+
+</head>
+<body>
+    <script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Wait for the window to load so we can accurately measure the screen width
+    window.addEventListener("load", function() {
+        var listWrapper = document.querySelector("#auto-marquee-list .elementor-icon-list-items");
+        if (!listWrapper) return;
+
+        var originalItems = Array.from(listWrapper.children);
+        if (originalItems.length === 0) return;
+
+        // 1. DYNAMIC FILL MATH
+        // Measures the screen width and calculates exactly how many sets of your 
+        // 4 items are needed to fill it plus a safe buffer zone for looping.
+        var screenWidth = window.innerWidth;
+        
+        // Calculate total width of one complete set of your items
+        var singleSetWidth = 0;
+        originalItems.forEach(function(item) {
+            singleSetWidth += item.offsetWidth || 300; // Fallback estimate if not fully rendered
+        });
+
+        // Determine how many times we must clone the list to ensure zero empty tracks
+        var copiesNeeded = Math.ceil((screenWidth * 2.5) / singleSetWidth);
+        if (copiesNeeded < 3) copiesNeeded = 3; // Enforce a minimum safety buffer
+
+        // 2. AUTOMATIC IN-MEMORY CLONING
+        // Clones your 4 original items perfectly into the DOM array
+        for (var i = 0; i < copiesNeeded; i++) {
+            originalItems.forEach(function(item) {
+                var clone = item.cloneNode(true);
+                listWrapper.appendChild(clone);
+            });
+        }
+        
+        // 3. WAKE UP THE ANIMATION TRACK
+        listWrapper.classList.add("marquee-ready");
+    });
+});
+</script>
+</body>
+</html>
+
+
+
